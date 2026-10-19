@@ -39,6 +39,39 @@ The Streamlit dashboard provides:
 - Prediction accuracy
 - Monitored-city weather map
 
+## Run with Docker
+
+Docker Compose runs the FastAPI service and Streamlit dashboard in separate
+containers built from the same image. The local `data/` directory is mounted
+into both containers so prediction history is retained on the host.
+
+The model artifacts in `models/` must be present before building the image. If
+they are not available, pull or reproduce the DVC pipeline first.
+
+Build and start both services:
+
+```powershell
+docker compose up --build -d
+```
+
+Open the applications:
+
+- Streamlit dashboard: `http://localhost:8501`
+- FastAPI documentation: `http://localhost:8000/docs`
+
+Check service status and logs:
+
+```powershell
+docker compose ps
+docker compose logs -f
+```
+
+Stop the containers:
+
+```powershell
+docker compose down
+```
+
 To check that Streamlit is running:
 
 ```powershell
