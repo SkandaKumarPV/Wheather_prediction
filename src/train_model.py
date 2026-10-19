@@ -69,21 +69,22 @@ def main() -> None:
         cv_mae[name] = float(sum(scores) / len(scores))
 
     selected_name = min(cv_mae, key=cv_mae.get)
-    temp_model = make_regressor(selected_name, regressors[selected_name])
-    temp_model.fit(x, y_temp)
-    temp_prediction = temp_model.predict(x_test)
+    temp_holdout_model = make_regressor(selected_name, regressors[selected_name])
+    temp_holdout_model.fit(x_train, y_temp_train)
+    temp_prediction = temp_holdout_model.predict(x_test)
     persistence_prediction = [0.0] * len(y_temp_test)
 
-    rain_model = RandomForestClassifier(
+    rain_holdout_model = RandomForestClassifier(
         n_estimators=params["random_forest"]["n_estimators"],
         max_depth=params["random_forest"]["max_depth"],
         min_samples_leaf=params["random_forest"]["min_samples_leaf"],
         random_state=42,
         n_jobs=-1,
     )
-    rain_model.fit(x, y_rain)
-    rain_prediction = rain_model.predict(x_test)
-    rain_probability = rain_model.predict_proba(x_test)[:, 1]
+    rain_holdout_model.fit(x_train, y_rain_train)
+    rain_prediction = rain_holdout_model.predict(x_test)
+    rain_class_index = list(rain_holdout_model.classes_).index(1)
+    rain_probability = rain_holdout_model.predict_proba(x_test)[:, rain_class_index]
 
     model_mae = mean_absolute_error(y_temp_test, temp_prediction)
     baseline_mae = mean_absolute_error(y_temp_test, persistence_prediction)
@@ -104,6 +105,16 @@ def main() -> None:
     }
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temp_model = make_regressor(selected_name, regressors[selected_name])
+    temp_model.fit(x, y_temp)
+    rain_model = RandomForestClassifier(
+        n_estimators=params["random_forest"]["n_estimators"],
+        max_depth=params["random_forest"]["max_depth"],
+        min_samples_leaf=params["random_forest"]["min_samples_leaf"],
+        random_state=42,
+        n_jobs=-1,
+    )
+    rain_model.fit(x, y_rain)
     joblib.dump(temp_model, MODELS_DIR / "temp_model.joblib")
     joblib.dump(rain_model, MODELS_DIR / "rain_model.joblib")
     METRICS_FILE.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
