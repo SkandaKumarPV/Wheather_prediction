@@ -1,3 +1,9 @@
 .venv/
 __pycache__/
 *.pyc
+data/prediction_log.csv
+data/*.log
+data/*.tmp.csv
+.pytest_cache/
+.coverage
+htmlcov/
