@@ -89,6 +89,28 @@ def _daily_frame(payload: dict[str, Any]) -> pd.DataFrame:
     return frame
 
 
+def _normalize_daily_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Translate Open-Meteo variable names into the training schema."""
+    daily = payload.get("daily")
+    if not isinstance(daily, dict):
+        return payload
+    names = {
+        "temperature_2m_max": "temp_max",
+        "temperature_2m_min": "temp_min",
+        "precipitation_sum": "precip",
+        "wind_speed_10m_max": "wind",
+        "surface_pressure_mean": "pressure",
+        "relative_humidity_2m_mean": "humidity",
+        "cloud_cover_mean": "cloudcover",
+        "shortwave_radiation_sum": "radiation",
+    }
+    normalized = dict(payload)
+    normalized["daily"] = {
+        names.get(column, column): values for column, values in daily.items()
+    }
+    return normalized
+
+
 def fetch_recent(lat: float, lon: float, past_days: int = 30) -> pd.DataFrame:
     """Fetch recent daily observations in the training schema."""
     if not -90 <= lat <= 90 or not -180 <= lon <= 180:
@@ -117,7 +139,7 @@ def fetch_recent(lat: float, lon: float, past_days: int = 30) -> pd.DataFrame:
             "timezone": "auto",
         },
     )
-    return _daily_frame(payload)
+    return _daily_frame(_normalize_daily_payload(payload))
 
 
 def _feature_row(observations: pd.DataFrame) -> pd.DataFrame:
