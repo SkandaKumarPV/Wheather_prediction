@@ -107,10 +107,14 @@ def main() -> None:
     location = st.session_state.location
     try:
         prediction = cached_prediction(location["lat"], location["lon"], location["name"])
-        forecast = cached_forecast(location["lat"], location["lon"])
     except (OSError, ValueError, KeyError) as error:
         st.error(f"Unable to load weather data: {error}")
         return
+    try:
+        forecast = cached_forecast(location["lat"], location["lon"])
+    except (OSError, ValueError, KeyError) as error:
+        forecast = []
+        st.warning(f"Seven-day forecast is temporarily unavailable: {error}")
 
     st.title("Weather Pattern Prediction System")
     st.caption(f"Live ML inference for {location['name']}, {location['country']}")
@@ -128,8 +132,11 @@ def main() -> None:
     forecast_tab, accuracy_tab, map_tab = st.tabs(["📅 Seven-day forecast", "📊 Accuracy", "🗺️ Weather map"])
     with forecast_tab:
         st.subheader("Open-Meteo seven-day forecast")
-        _render_forecast(forecast)
-        st.caption("This forecast is supplied by Open-Meteo and is separate from the ML prediction above.")
+        if forecast:
+            _render_forecast(forecast)
+            st.caption("This forecast is supplied by Open-Meteo and is separate from the ML prediction above.")
+        else:
+            st.info("The forecast service is temporarily unavailable. Refresh data to try again.")
 
     with accuracy_tab:
         st.subheader("Prediction accuracy")

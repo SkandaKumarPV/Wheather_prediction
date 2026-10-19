@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
+from time import sleep
 from typing import Any
 
 import joblib
@@ -22,6 +23,7 @@ ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 TIMEOUT_SECONDS = 30
+TRANSIENT_STATUS_CODES = {502, 503, 504}
 
 WMO_CONDITIONS = {
     0: ("Clear sky", "☀️", "sunny"),
@@ -49,8 +51,21 @@ WMO_CONDITIONS = {
 
 
 def _request_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
-    response = requests.get(url, params=params, timeout=TIMEOUT_SECONDS)
-    response.raise_for_status()
+    for attempt in range(3):
+        try:
+            response = requests.get(url, params=params, timeout=TIMEOUT_SECONDS)
+            if response.status_code in TRANSIENT_STATUS_CODES and attempt < 2:
+                sleep(1 << attempt)
+                continue
+            response.raise_for_status()
+        except requests.RequestException as error:
+            status = getattr(error.response, "status_code", None)
+            if status is not None:
+                raise OSError(
+                    f"Weather service returned HTTP {status}; please try again shortly."
+                ) from error
+            raise OSError(f"Weather service request failed: {error}") from error
+        break
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("Weather service returned an invalid response.")
