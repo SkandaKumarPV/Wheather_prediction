@@ -7,3 +7,6 @@ data/*.tmp.csv
 .pytest_cache/
 .coverage
 htmlcov/
+mlruns/
+mlflow.db
+mlflow.db-*

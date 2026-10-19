@@ -2,8 +2,12 @@
 
 from pathlib import Path
 import json
+import os
 
 import joblib
+import mlflow
+import mlflow.sklearn
+from mlflow.models import infer_signature
 import pandas as pd
 import yaml
 from sklearn.ensemble import (
@@ -29,6 +33,7 @@ DATA_FILE = ROOT / "data" / "processed" / "training.csv"
 MODELS_DIR = ROOT / "models"
 METRICS_FILE = ROOT / "reports" / "metrics.json"
 PARAMS_FILE = ROOT / "params.yaml"
+MLFLOW_DB = ROOT / "mlflow.db"
 
 
 def make_regressor(name: str, params: dict) -> object:
@@ -39,11 +44,24 @@ def make_regressor(name: str, params: dict) -> object:
     raise ValueError(f"Unknown regressor: {name}")
 
 
+def configure_mlflow() -> None:
+    """Configure local or externally hosted MLflow tracking."""
+    tracking_uri = os.getenv(
+        "MLFLOW_TRACKING_URI", f"sqlite:///{MLFLOW_DB.as_posix()}"
+    )
+    if "://" not in tracking_uri:
+        tracking_uri = Path(tracking_uri).resolve().as_uri()
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT_NAME", "weather-prediction"))
+
+
 def main() -> None:
+    configure_mlflow()
     with PARAMS_FILE.open(encoding="utf-8") as file:
         params = yaml.safe_load(file)
     data = pd.read_csv(DATA_FILE, parse_dates=["date"])
     x = data[FEATURE_COLUMNS]
+    x_for_signature = x.astype(float)
     y_temp = data["temp_delta"]
     y_rain = data["rain_target"]
 
@@ -118,6 +136,57 @@ def main() -> None:
     joblib.dump(temp_model, MODELS_DIR / "temp_model.joblib")
     joblib.dump(rain_model, MODELS_DIR / "rain_model.joblib")
     METRICS_FILE.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    with mlflow.start_run(run_name="weather-training") as run:
+        mlflow.log_params(
+            {
+                "selected_temperature_model": selected_name,
+                "test_fraction": params["data"]["test_fraction"],
+                "cv_splits": params["data"]["cv_splits"],
+                "rain_threshold_mm": params["data"]["rain_threshold_mm"],
+                **{
+                    f"{selected_name}.{key}": value
+                    for key, value in regressors[selected_name].items()
+                },
+            }
+        )
+        mlflow.log_metrics(
+            {
+                "test_temperature_mae": model_mae,
+                "persistence_baseline_mae": baseline_mae,
+                "rain_accuracy": metrics["rain_accuracy"],
+                "rain_precision": metrics["rain_precision"],
+                "rain_recall": metrics["rain_recall"],
+                "rain_f1": metrics["rain_f1"],
+                "rain_brier_score": metrics["rain_brier_score"],
+                "rain_roc_auc": metrics["rain_roc_auc"],
+                "cv_random_forest_mae": cv_mae["random_forest"],
+                "cv_hist_gradient_boosting_mae": cv_mae["hist_gradient_boosting"],
+            }
+        )
+        mlflow.set_tags(
+            {
+                "pipeline": "dvc",
+                "target_temperature": "temp_delta",
+                "target_rain": "rain_target",
+                "training_rows": str(len(x)),
+                "test_rows": str(test_size),
+            }
+        )
+        mlflow.log_artifact(METRICS_FILE, artifact_path="reports")
+        mlflow.log_artifact(PARAMS_FILE, artifact_path="configuration")
+        mlflow.sklearn.log_model(
+            temp_model,
+            name="temperature_model",
+            signature=infer_signature(x_for_signature, temp_model.predict(x)),
+            input_example=x_for_signature.head(1),
+        )
+        mlflow.sklearn.log_model(
+            rain_model,
+            name="rain_model",
+            signature=infer_signature(x_for_signature, rain_model.predict(x)),
+            input_example=x_for_signature.head(1),
+        )
+        print(f"MLflow run: {run.info.run_id}")
     print(json.dumps(metrics, indent=2))
 
 

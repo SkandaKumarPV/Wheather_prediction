@@ -16,6 +16,7 @@ dashboard.
 - FastAPI JSON API and lightweight HTML accuracy dashboard
 - Streamlit forecast, accuracy, and monitored-city map views
 - Reproducible DVC feature and training stages
+- MLflow experiment tracking for parameters, metrics, models, and artifacts
 
 ## Architecture
 
@@ -46,6 +47,7 @@ data/raw/             DVC-tracked raw observations
 data/processed/       DVC-generated training table
 models/               DVC-generated deployment models
 reports/              verified evaluation metrics
+mlflow.db             local MLflow tracking database (ignored)
 src/fetch_historical.py
 src/features.py       leakage-safe feature engineering
 src/train_model.py    training, selection, and evaluation
@@ -150,6 +152,30 @@ Rain ROC-AUC:                0.97777
 The holdout models are evaluated on the final chronological 20% split. The
 saved deployment models are then retrained on all available training rows.
 
+## MLflow monitoring
+
+Training logs the selected model, pipeline parameters, cross-validation scores,
+holdout metrics, final models, metrics report, and parameter file to the
+`weather-prediction` MLflow experiment. By default, tracking uses the ignored
+local SQLite database `mlflow.db`.
+
+Run training or the DVC pipeline:
+
+```powershell
+$env:MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
+.\.venv\Scripts\dvc.exe repro
+```
+
+Start the local MLflow UI:
+
+```powershell
+.\.venv\Scripts\mlflow.exe ui --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000
+```
+
+Open `http://127.0.0.1:5000` to compare runs and inspect metrics. For team
+monitoring, set `MLFLOW_TRACKING_URI` to a shared MLflow tracking server and
+configure its artifact store; do not commit `mlflow.db` or model artifacts.
+
 ## Geographic limitation
 
 The historical training data was collected for Nashik-area coordinates
@@ -168,3 +194,16 @@ Run the application tests:
 
 The tests mock weather services and use temporary prediction logs, so normal
 test execution does not require internet access or modify the real runtime log.
+
+## Continuous integration
+
+GitHub Actions is configured in
+[.github/workflows/ci.yml](.github/workflows/ci.yml). Every push and pull
+request to `main` installs the pinned dependencies, runs the full test suite
+with coverage, validates the DVC graph, pulls DVC data when the
+`DVC_REMOTE_URL` repository secret is configured, reproduces the DVC pipeline
+when raw data is available, and validates model feature compatibility.
+
+For full CI pipeline reproduction, add a shared DVC remote URL as the
+`DVC_REMOTE_URL` GitHub Actions repository secret. The current local exercise
+remote is machine-specific and is intentionally not usable by hosted runners.

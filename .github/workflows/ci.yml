@@ -1,0 +1,62 @@
+name: Weather pipeline CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q tests --cov=src --cov-report=term-missing
+
+      - name: Validate DVC graph
+        run: dvc dag
+
+      - name: Pull DVC data when a remote is configured
+        env:
+          DVC_REMOTE_URL: ${{ secrets.DVC_REMOTE_URL }}
+        run: |
+          if [ -n "$DVC_REMOTE_URL" ]; then
+            dvc remote add --local ci-storage "$DVC_REMOTE_URL"
+            dvc pull
+          else
+            echo "DVC_REMOTE_URL is not configured; skipping remote data pull."
+          fi
+
+      - name: Reproduce pipeline when raw data is available
+        run: |
+          if [ -f data/raw/historical.csv ]; then
+            dvc repro
+          else
+            echo "Raw DVC data is unavailable in CI; pipeline reproduction is skipped."
+          fi
+
+      - name: Validate generated model artifacts
+        run: |
+          if [ -f models/temp_model.joblib ] && [ -f models/rain_model.joblib ]; then
+            python -c "import joblib; from src.features import FEATURE_COLUMNS; temp=joblib.load('models/temp_model.joblib'); rain=joblib.load('models/rain_model.joblib'); assert temp.n_features_in_ == len(FEATURE_COLUMNS); assert rain.n_features_in_ == len(FEATURE_COLUMNS); assert 1 in rain.classes_; print('Model artifacts validated')"
+          else
+            echo "Model artifacts are unavailable in CI; artifact validation is skipped."
+          fi
