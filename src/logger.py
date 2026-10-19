@@ -8,7 +8,10 @@ from typing import Any
 
 import pandas as pd
 
-from .predict_live import fetch_recent
+try:
+    from .predict_live import fetch_recent
+except ImportError:
+    from predict_live import fetch_recent
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_FILE = ROOT / "data" / "prediction_log.csv"
