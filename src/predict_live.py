@@ -233,3 +233,48 @@ def geocode_city(city_name: str) -> dict[str, Any]:
         "latitude": float(result["latitude"]),
         "longitude": float(result["longitude"]),
     }
+
+
+def fetch_geospatial_weather_data() -> pd.DataFrame:
+    """Fetch supported current indicators for a small set of monitored cities."""
+    cities = [
+        ("Nashik", "India", 19.9975, 73.7898),
+        ("Mumbai", "India", 19.0760, 72.8777),
+        ("Delhi", "India", 28.6139, 77.2090),
+        ("London", "United Kingdom", 51.5074, -0.1278),
+        ("New York", "United States", 40.7128, -74.0060),
+        ("Tokyo", "Japan", 35.6762, 139.6503),
+        ("Sydney", "Australia", -33.8688, 151.2093),
+    ]
+    rows = []
+    for city, country, lat, lon in cities:
+        payload = _request_json(
+            FORECAST_URL,
+            {
+                "latitude": lat,
+                "longitude": lon,
+                "forecast_days": 1,
+                "daily": "temperature_2m_max,precipitation_sum,wind_speed_10m_max,weather_code",
+                "timezone": "auto",
+            },
+        )
+        daily = payload.get("daily", {})
+        required = ["temperature_2m_max", "precipitation_sum", "wind_speed_10m_max", "weather_code"]
+        if any(not daily.get(column) for column in required):
+            raise ValueError(f"Weather response is incomplete for {city}.")
+        condition = parse_wmo_code(int(daily["weather_code"][0]))
+        rows.append(
+            {
+                "city": city,
+                "country": country,
+                "lat": lat,
+                "lon": lon,
+                "temperature": float(daily["temperature_2m_max"][0]),
+                "precipitation": float(daily["precipitation_sum"][0]),
+                "wind_speed": float(daily["wind_speed_10m_max"][0]),
+                "condition": condition["description"],
+                "icon": condition["icon"],
+                "theme": condition["theme"],
+            }
+        )
+    return pd.DataFrame(rows)
