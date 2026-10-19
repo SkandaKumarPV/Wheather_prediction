@@ -1,0 +1,29 @@
+stages:
+  features:
+    cmd: python src/features.py
+    deps:
+      - src/features.py
+      - data/raw/historical.csv
+    params:
+      - params.yaml:
+          - data.rain_threshold_mm
+    outs:
+      - data/processed/training.csv
+
+  train:
+    cmd: python src/train_model.py
+    deps:
+      - src/train_model.py
+      - src/features.py
+      - data/processed/training.csv
+    params:
+      - params.yaml:
+          - data.test_fraction
+          - data.cv_splits
+          - random_forest
+          - hist_gradient_boosting
+    outs:
+      - models/temp_model.joblib
+      - models/rain_model.joblib
+    metrics:
+      - reports/metrics.json

@@ -1,0 +1,14 @@
+data:
+  test_fraction: 0.2
+  cv_splits: 5
+  rain_threshold_mm: 1.0
+
+random_forest:
+  n_estimators: 300
+  max_depth: 12
+  min_samples_leaf: 2
+
+hist_gradient_boosting:
+  max_iter: 200
+  max_depth: 4
+  learning_rate: 0.05

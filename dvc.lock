@@ -1,0 +1,61 @@
+schema: '2.0'
+stages:
+  features:
+    cmd: python src/features.py
+    deps:
+    - path: data/raw/historical.csv
+      hash: md5
+      md5: afd26bf1a52bc1f4b47651f7a96762ab
+      size: 89087
+    - path: src/features.py
+      hash: md5
+      md5: 328a344c202c814ce3f7b82e11ee76d5
+      size: 4049
+    params:
+      params.yaml:
+        data.rain_threshold_mm: 1.0
+    outs:
+    - path: data/processed/training.csv
+      hash: md5
+      md5: a683a5f20b2aa067426ea3408619b559
+      size: 305585
+  train:
+    cmd: python src/train_model.py
+    deps:
+    - path: data/processed/training.csv
+      hash: md5
+      md5: a683a5f20b2aa067426ea3408619b559
+      size: 305585
+    - path: src/features.py
+      hash: md5
+      md5: 328a344c202c814ce3f7b82e11ee76d5
+      size: 4049
+    - path: src/train_model.py
+      hash: md5
+      md5: 7b7c59affe6794bb046d33d56e793c5e
+      size: 4591
+    params:
+      params.yaml:
+        data.cv_splits: 5
+        data.test_fraction: 0.2
+        hist_gradient_boosting:
+          max_iter: 200
+          max_depth: 4
+          learning_rate: 0.05
+        random_forest:
+          n_estimators: 300
+          max_depth: 12
+          min_samples_leaf: 2
+    outs:
+    - path: models/rain_model.joblib
+      hash: md5
+      md5: 5b4fb4b23283dad5c210126ceefce4ec
+      size: 4255737
+    - path: models/temp_model.joblib
+      hash: md5
+      md5: ae09690de6a5b2bad85296546a8753f9
+      size: 9059889
+    - path: reports/metrics.json
+      hash: md5
+      md5: a342f27c4b9fe88615aca5f78a61fa7c
+      size: 603
