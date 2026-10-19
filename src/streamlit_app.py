@@ -147,10 +147,16 @@ def main() -> None:
         except (OSError, ValueError, KeyError) as error:
             st.error(str(error))
             summary = get_accuracy_summary()
-        metrics = st.columns(3)
+        metrics = st.columns(4)
         metrics[0].metric("Scored predictions", summary["scored_predictions"])
-        metrics[1].metric("Average temperature error", "—" if summary["average_temperature_error"] is None else f"{summary['average_temperature_error']:.2f} °C")
-        metrics[2].metric("Rain accuracy", "—" if summary["rain_accuracy"] is None else f"{summary['rain_accuracy']:.1%}")
+        metrics[1].metric("Pending predictions", summary["pending_predictions"])
+        metrics[2].metric("Average temperature error", "—" if summary["average_temperature_error"] is None else f"{summary['average_temperature_error']:.2f} °C")
+        metrics[3].metric("Rain accuracy", "—" if summary["rain_accuracy"] is None else f"{summary['rain_accuracy']:.1%}")
+        if summary["pending_predictions"]:
+            st.info(
+                "Pending predictions are scored after their prediction date, "
+                "when observed weather becomes available."
+            )
         if st.button("Seed retrospective estimates"):
             seed_historical_predictions(location["lat"], location["lon"])
             st.rerun()

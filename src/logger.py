@@ -164,9 +164,13 @@ def get_accuracy_summary(last_n: int = 30) -> dict[str, Any]:
         raise ValueError("last_n must be positive.")
     log = _load_log()
     scored = log.dropna(subset=["temp_error", "rain_correct"]).tail(last_n)
+    pending_predictions = int(
+        log["temp_error"].isna().sum()
+    )
     if scored.empty:
         return {
             "scored_predictions": 0,
+            "pending_predictions": pending_predictions,
             "average_temperature_error": None,
             "rain_accuracy": None,
             "history": [],
@@ -176,6 +180,7 @@ def get_accuracy_summary(last_n: int = 30) -> dict[str, Any]:
     ].to_dict(orient="records")
     return {
         "scored_predictions": int(len(scored)),
+        "pending_predictions": pending_predictions,
         "average_temperature_error": float(
             pd.to_numeric(scored["temp_error"]).mean()
         ),
